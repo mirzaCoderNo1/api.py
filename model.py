@@ -3,51 +3,47 @@ import jwt
 import re
 from datetime import date, datetime
 import mysql.connector
-# from controller import *
 import dotenv
 import os
 dotenv.load_dotenv()
-from controller import get_item
 host = os.environ.get("host")
+password = os.environ.get("password")
+user_name = os.environ.get("user_name")
+databasename = os.environ.get("database_name")
+table_name = os.environ.get("table_name")
+security_key = os.environ.get("security_key")
 
-connection = mysql.connector.connect(host=host, username="root", password="muazzam*786", database="mirza_coder")
+connection = mysql.connector.connect(host=host, username=user_name, password=password, database=databasename)
 my_cursor = connection.cursor()
 
-my_cursor.execute("USE mirza_coder")
+my_cursor.execute(f"USE {databasename}")
 
 def deleting_table_users():
-    my_cursor.execute("drop table users")
+    my_cursor.execute(f"drop table {table_name}")
     connection.commit()
     
 def creating_tabel_users():
-    my_cursor.execute("create table users (email varchar(50),password varchar(50))")
+    my_cursor.execute(f"create table {table_name} (email varchar(50),password varchar(50))")
 
 def get_items_from_database():
-    # Database query to fetch items
-    my_cursor.execute("SELECT id , description, status , priority, delivery_date,start_date FROM users")
+    my_cursor.execute(f"SELECT id , description, status , priority, delivery_date,start_date FROM {table_name}")
     columns = [col[0] for col in my_cursor.description]
     return columns, my_cursor.fetchall()
 def add_item_to_database(item_data):
-    # Prepare the SQL query for inserting the item data into the database
-    insert_statement = "INSERT INTO users (description, status, delivery_date, priority) VALUES (%s, %s, %s, %s)"
+    insert_statement = f"INSERT INTO {table_name} (description, status, delivery_date, priority) VALUES (%s, %s, %s, %s)"
 
-    # # Convert the item data into a tuple
     item_tuple = (item_data["description"], item_data["status"], item_data["delivery_date"], item_data["priority"])
 
-    # # Execute the INSERT statement
     my_cursor.execute(insert_statement, item_tuple)
 
-    # # Commit the changes to the database
-    # my_cursor.execute(f"insert into users description ='{item_data['description']}',status = '{item_data['status']}',delivery_date ='{item_data["delivery_date"]}',priority ='{item_data['priority']}'")
     connection.commit()
 
 def token_generation():
     user_data= request.get_json()
     email_condition ="^[a-z _]+[\._]?[a-z A-z 0-9]+[@]\w+[.]\w{2,3}$"
-    my_cursor.execute("use mirza_coder")
+    my_cursor.execute(f"use {databasename}")
     if 'email' not in user_data:
         return jsonify({"Message":"Email is required for signup"}),400
-    # if (user_data['email'] != email_condition):
     if not re.search(email_condition,user_data['email']):
         return jsonify({"Message":"Enter a valid email"}),400
     else:
@@ -56,24 +52,23 @@ def token_generation():
     if 'password' not in user_data:
         return jsonify({"Message":"We need password for signup"}),400
 
-    my_cursor.execute(f"SELECT email from users where email ='{user_data['email']}'")
+    my_cursor.execute(f"SELECT email from {table_name} where email ='{user_data['email']}'")
     email_database = my_cursor.fetchall()
     connection.commit()
-    # exact_email_database = email_database[0]
 
     if (email_database == []) :
-        my_cursor.execute(f"insert into users (email,password) values ('{user_data["email"]}','{user_data["password"]}')")
+        my_cursor.execute(f"insert into {table_name} (email,password) values ('{user_data["email"]}','{user_data["password"]}')")
         connection.commit()
         print(email_database)
     else:
         return jsonify({"Message":"User already exists"})
-    # jwt_key = {user_data["email"],user_data["password"]}
+
     payload = {
     'email': user_data['email'],
     # Assuming 'id' is a unique identifier for the user
 }
 
-    output = jwt.encode(payload,"Hello mirzag",algorithm="HS256")
+    output = jwt.encode(payload,security_key,algorithm="HS256")
     return jsonify({"token":output}),200
 
 
@@ -83,14 +78,14 @@ def token_validation():
     if ('token' not in token_checker):
         return jsonify({"Message":"token not found"})
     try:    
-        decoded = jwt.decode(token_checker['token'],"Hello mirzag",algorithms='HS256')
+        decoded = jwt.decode(token_checker['token'],security_key,algorithms='HS256')
     except:
         return jsonify({"Message":"Invalid token"})
     email_db_checker = decoded['email']
     # print(email_db_checker)
-    my_cursor.execute('use mirza_coder')
+    my_cursor.execute(f'use {databasename}')
     # connection.commit()
-    my_cursor.execute(f"select password from users where email = '{email_db_checker}' and password = '{token_checker['password']}' ")
+    my_cursor.execute(f"select password from {table_name} where email = '{email_db_checker}' and password = '{token_checker['password']}' ")
     result = my_cursor.fetchone()
     connection.commit()
     if (result is  None):
@@ -115,23 +110,25 @@ def data_from_database():
     else:
         pass
     try:
-        decoded = jwt.decode(token_checker['token'],"Hello mirzag",algorithms='HS256')
+        decoded = jwt.decode(token_checker['token'],security_key,algorithms='HS256')
     except:
         return jsonify({"Message":"Invalid token"}),400
     email_db_checker = decoded['email']
     # print(email_db_checker)
-    my_cursor.execute('use mirza_coder')
+    my_cursor.execute(f'use {databasename}')
     # connection.commit()
-    my_cursor.execute(f"select password from users where email = '{email_db_checker}' and password = '{token_checker['password']}' ")
-    result = my_cursor.fetchone()
+    my_cursor.execute(f"select password from {table_name} where email = '{email_db_checker}'")
+    result = my_cursor.fetchall()
     connection.commit()
     if (result is  None):
         return jsonify({"Message":"User not found"}),404
     
-    password = result[0]
-    if (password != token_checker['password'] ):
+    password_token = result[0]
+    print(password_token[0])
+    if (password_token[0] != token_checker['password'] ):
         return jsonify({"Message":"Invalid token or password"}),400
     else:
+        
         
     
 
@@ -142,7 +139,7 @@ def data_from_database():
         status = request.args.get('status', type=str)
         priority = request.args.get('priority', type=str)
         get_by_delivery_date = request.args.get('delivery_date', type=str)
-        get_by_date = request.args.get('start_date', type=str)
+        get_by_date = request.args.get('start_date',type=str)
 
         total_items = len(items)
         total_pages = (total_items + per_page - 1) // per_page  # Calculate total pages
@@ -153,18 +150,23 @@ def data_from_database():
 
         start_idx = (page - 1) * per_page
         end_idx = min(start_idx + per_page, total_items)
-        print(items[0])
-
+        
         # Convert get_by_delivery_date and get_by_date to date objects
         get_by_delivery_date = datetime.strptime(get_by_delivery_date, "%d-%m-%y").date() if get_by_delivery_date else None
         get_by_date = datetime.strptime(get_by_date, "%d-%m-%y").date() if get_by_date else None
         filtered_items = [dict(zip(columns, item)) for item in items if
             (status is None or item[2] == status) and
             (priority is None or item[3] == priority) and
+            # (get_by_delivery_date is None or datetime.strptime(item[0], "%d-%m-%y").date() == get_by_delivery_date) and
             (get_by_delivery_date is None or datetime.strptime(item[4], "%d-%m-%y").date() == get_by_delivery_date) and
+            # (get_by_date is None or get_by_date == datetime.strptime(item[5], "%d-%m-%y").date())
             (get_by_date is None or datetime.strptime(item[5], "%d-%m-%y").date() == get_by_date)
+            
+            # (get_by_date is None or datetime.strptime(item[5], "%d-%m-%y").date() == get_by_date)
         ]
+        
         if any(item for item in filtered_items) is True:
+            print(type(items[0][5]))
                 # total_items = len(items)
             total_items = len(filtered_items)
             total_pages = (total_items + per_page - 1) // per_page  # Calculate total pages
@@ -215,7 +217,7 @@ def data_from_database():
                 }
             ]
             return jsonify(response_data)
-        
+    return('ok')        
 def get_one_item_from_database_using_id(item_id):
     
     columns, items = get_items_from_database()
@@ -223,18 +225,18 @@ def get_one_item_from_database_using_id(item_id):
     if ('token' not in token_checker):
         return jsonify({"Message":"token not found"}),400
     try:
-        decoded = jwt.decode(token_checker['token'],"Hello mirzag",algorithms='HS256')
+        decoded = jwt.decode(token_checker['token'],security_key,algorithms='HS256')
     except:
         return jsonify({"Message":"Invalid token"}),400
     email_db_checker = decoded['email']
     # print(email_db_checker)
-    my_cursor.execute('use mirza_coder')
+    my_cursor.execute(f'use {databasename}')
     # connection.commit()
-    my_cursor.execute(f"select password from users where email = '{email_db_checker}' and id = '{item_id}' ")
+    my_cursor.execute(f"select password from {table_name} where email = '{email_db_checker}' and id = '{item_id}' ")
     result = my_cursor.fetchone()
     connection.commit()
     if (result is  None):
-        return jsonify({"Message":"User not found"}),404
+        return jsonify({"Message":"User not accessed to this item"}),404
     
     password = result[0]
     if (password != token_checker['password'] ):
@@ -256,14 +258,14 @@ def add_one_item_to_database():
     if ('token' not in data):
         return jsonify({"Message":"token not found"}),400
     try:
-        decoded = jwt.decode(data['token'],"Hello mirzag",algorithms='HS256')
+        decoded = jwt.decode(data['token'],security_key,algorithms='HS256')
     except:
         return jsonify({"Message":"Invalid token"}),400
     email_db_checker = decoded['email']
     # print(email_db_checker)
-    my_cursor.execute('use mirza_coder')
+    my_cursor.execute(f'use {databasename}')
     # connection.commit()
-    my_cursor.execute(f"select password from users where email = '{email_db_checker}' and password = '{data['password']}' ")
+    my_cursor.execute(f"select password from {table_name} where email = '{email_db_checker}' and password = '{data['password']}' ")
     result = my_cursor.fetchone()
     connection.commit()
     if (result is  None):
@@ -294,7 +296,7 @@ def add_one_item_to_database():
         if "start_date" not in data:
             pass
         else:
-            my_cursor.execute(f"insert into users  (start_date,delivery_date,priority,status,description,email,password) values ('{data['start_date']}','{data['delivery_date']}','{data['priority']}','{data['status']}','{data['description']}','{email_db_checker}','{data['password']}')")
+            my_cursor.execute(f"insert into {table_name}  (start_date,delivery_date,priority,status,description,email,password) values ('{data['start_date']}','{data['delivery_date']}','{data['priority']}','{data['status']}','{data['description']}','{email_db_checker}','{data['password']}')")
         # add_item_to_database(item_data)
         # my_cursor.execute(f"update  users set email = '{email_db_checker}'where password = '{data['password']}'")
         my_cursor.fetchall()
@@ -318,14 +320,14 @@ def update_item(item_id):
     if ('token' not in token_checker):
         return jsonify({"Message":"token not found"})
     try:
-        decoded = jwt.decode(token_checker['token'],"Hello mirzag",algorithms='HS256')
+        decoded = jwt.decode(token_checker['token'],security_key,algorithms='HS256')
     except:
         return jsonify({"Message":"Invalid token"}),400
     email_db_checker = decoded['email']
     # print(email_db_checker)
-    my_cursor.execute('use mirza_coder')
+    my_cursor.execute(f'use {databasename}')
     # connection.commit()
-    my_cursor.execute(f"select password from users where email = '{email_db_checker}' and password = '{token_checker['password']}' ")
+    my_cursor.execute(f"select password from {table_name} where email = '{email_db_checker}' and password = '{token_checker['password']}' ")
     result = my_cursor.fetchone()
     connection.commit()
     if (result is  None):
@@ -361,22 +363,22 @@ def update_item(item_id):
             pass
         if "delivery_date" in item_data:
             # my_cursor.execute('UPDATE users  SET delivery_date=%s WHERE id = %s',(item_data['delivery_date'],item_id))
-            my_cursor.execute(f"update users set delivery_date ='{item_data['delivery_date']}' where id = '{item_id}'")
+            my_cursor.execute(f"update {table_name} set delivery_date ='{item_data['delivery_date']}' where id = '{item_id}'")
         elif "delivery_date" not in item_data:
             pass
         if "description" in item_data:
-            my_cursor.execute('UPDATE users set description=%s WHERE id = %s',(item_data['description'],item_id))
+            my_cursor.execute(f'UPDATE {table_name} set description=%s WHERE id = %s',(item_data['description'],item_id))
         elif "description" not in item_data:
             pass
             
 
         
 
-        my_cursor.execute('UPDATE users set priority = %s, status = %s,start_date =%s WHERE id = %s', (item_data['priority'], item_data['status'],item_data['start_date'],item_id))
+        my_cursor.execute(f'UPDATE {table_name} set priority = %s, status = %s,start_date =%s WHERE id = %s', (item_data['priority'], item_data['status'],item_data['start_date'],item_id))
         # my_cursor.execute(update_statement, (item_data["description"], item_data["priority"], item_data["status"], item_data["id"]))
         connection.commit()
         # result = my_cursor.execute(f"select id ,start_date,delivery_date,priority,description,status from users where id = '{item_to_update['id']}'") 
-        query = f"SELECT id, start_date, delivery_date, priority, description, status FROM users WHERE id = '{item_to_update['id']}'"
+        query = f"SELECT id, start_date, delivery_date, priority, description, status FROM {table_name} WHERE id = '{item_to_update['id']}'"
         my_cursor.execute(query)
         result = my_cursor.fetchone()
 
@@ -395,11 +397,11 @@ def delete_item_from_database(item_id):
         return jsonify({"Message":"token not found"}),400
 
     try:
-        decoded = jwt.decode(token_checker['token'],"Hello mirzag",algorithms='HS256')
+        decoded = jwt.decode(token_checker['token'],security_key,algorithms='HS256')
     except:
         return jsonify({"Message":"Invalid token"}),400
-    my_cursor.execute("use mirza_coder")
-    my_cursor.execute(f"select id from users where id ='{item_id}'")
+    my_cursor.execute(f"use {databasename}")
+    my_cursor.execute(f"select id from {table_name} where id ='{item_id}'")
     ids = my_cursor.fetchone()
     connection.commit()
     # print(ids)
@@ -420,10 +422,10 @@ def delete_item_from_database(item_id):
     email_db_checker = decoded['email']
     # print(email_db_checker)
     # print(email_db_checker)
-    my_cursor.execute('use mirza_coder')
+    my_cursor.execute(f'use {databasename}')
 
     # # connection.commit()
-    my_cursor.execute(f"select password from users where email = '{email_db_checker}' and id ='{item_id}'")
+    my_cursor.execute(f"select password from {table_name} where email = '{email_db_checker}' and id ='{item_id}'")
     result = my_cursor.fetchone()
     connection.commit()
     # print(result)
@@ -444,7 +446,7 @@ def delete_item_from_database(item_id):
             return jsonify({"message": "Item not found"}), 404
 
         # Database query to delete item
-        delete_statement = "DELETE FROM users WHERE id=%s"
+        delete_statement = f"DELETE FROM {table_name} WHERE id=%s"
         my_cursor.execute(delete_statement, (item_id,))
         connection.commit()
 
@@ -452,3 +454,19 @@ def delete_item_from_database(item_id):
 
 
 
+
+def bearer_token_validation():
+    authorization_header = request.headers.get("Authorization")
+    if not authorization_header:
+        return make_response("Authorization header is missing", 401)
+    else:
+        token_prefix = "Bearer "
+        token = authorization_header.split()
+        print(token[1])
+        print(type(authorization_header))
+        try:    
+            decoded = jwt.decode(token[1],security_key,algorithms='HS256')
+        except:
+            return jsonify({"Message":"Invalid token"})
+        email_db_checker = decoded['email']
+        return(email_db_checker)

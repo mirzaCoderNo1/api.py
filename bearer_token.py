@@ -1,3 +1,4 @@
+from flask import Flask, request, jsonify, make_response
 from flask import Flask, request, jsonify,make_response,send_file
 import os
 import jwt
@@ -7,60 +8,25 @@ import mysql.connector
 import dotenv
 dotenv.load_dotenv()
 from model import *
-
 app = Flask(__name__)
+security_key = os.environ.get("security_key")
 
 
-@app.route('/users/signup',methods=['POST'])
-def createing_token():
-    return(token_generation())
-    
-
-@app.route('/users/login',methods =['GET'])
-def veladiting_token():
-    return(token_validation())
-
-@app.route('/api/items', methods=['GET'])
-def getting_data_database():
-    return(data_from_database())
-    
-    
-    
-@app.route('/api/items/<int:item_id>', methods=['GET'])
-def get_item(item_id):
-    return(get_one_item_from_database_using_id(item_id))
-
-
-
-
-@app.route('/api/items', methods=['POST'])
-def add_item():
-    return(add_one_item_to_database())
-
-
-
-
-
-
-@app.route('/api/items/<int:item_id>', methods=['PUT'])
-def put_item(item_id):
-    return(update_item(item_id))
-
-
-
-
-
-
-@app.route('/api/items/<int:item_id>', methods=['DELETE'])
-def delete_item(item_id):
-    return(delete_item_from_database(item_id))
-
-
-
-@app.route('/uploaded_files/<filename>',methods=['GET'])
-def getting_pdf(filename):
-    return send_file(f"uploaded_files/{filename}")
-
+def bearer_token_validation():
+    authorization_header = request.headers.get("Authorization")
+    if not authorization_header:
+        return make_response("Authorization header is missing", 401)
+    else:
+        token_prefix = "Bearer "
+        token = authorization_header.split()
+        print(token[1])
+        print(type(authorization_header))
+        try:    
+            decoded = jwt.decode(token[1],security_key,algorithms='HS256')
+        except:
+            return jsonify({"Message":"Invalid token"})
+        email_db_checker = decoded['email']
+        return(email_db_checker)
 
 
 @app.route("/user/login", methods=["GET"])
@@ -115,7 +81,14 @@ def upload_pdf():
             return(file_path)
         except:
             return jsonify({"Message":"PDF not found"}),404
+@app.route('/uploaded_files/<filename>',methods=['GET'])
+def getting_pdf(filename):
+    print(filename)
+    return send_file(f"uploaded_files/{filename}")
+    # return("ok")
+        
 
 
-if __name__ == '__main__':
-    app.run(debug=True)    
+
+if __name__ == "__main__":
+    app.run(debug=True)

@@ -6,3 +6,4 @@ from datetime import date, datetime
 import mysql.connector
 import dotenv
 dotenv.load_dotenv()
+
